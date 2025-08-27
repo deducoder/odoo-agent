@@ -1,5 +1,8 @@
-# Python-generated files
+# Archivos generados por Python
 __pycache__/
 
-# Virtual environments
+# Entornos virtuales
 .venv
+
+# Variables de entorno
+.env
