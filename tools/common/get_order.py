@@ -9,12 +9,12 @@ from server import mcp  # Importa clase `mcp` desde el módulo `server`
 
 load_dotenv()  # Carga las variables de entorno desde el archivo `.env`
 
-from utils.month_map import month_map  # Importa mapeo de meses
+from utils.date_parser import date_parser  # Importa función de parseo de periodos
 from utils.order_type_map import order_type_map  # importa mapeo de tipos de orden
 
 
 @mcp.tool()
-def get_order(order_type: str, month: str = "", year: Optional[int] = None):
+def get_order(order_type: str, period: str = "", year: Optional[int] = None):
     """
     Recupera órdenes de Odoo a través de un Workflow de n8n
     Argumentos:
@@ -44,41 +44,16 @@ def get_order(order_type: str, month: str = "", year: Optional[int] = None):
         print(error)
         return {"status": "error", "message": error}
 
-    current_date = datetime.now()  # Obtiene fecha actual
+    start_date, end_date, error = date_parser(
+        period, year
+    )  # Usar la nueva función para obtener el rango de fechas
 
-    if year is None:  # Verifica existencia del año en la consulta
-        year = current_date.year
+    if error:  # Vertifica si la respueta del parser es un error
+        print(error)
+        return {"status": "error", "message": error}
 
-    if month == "":  # Verifica existencia del mes en la consulta
-        month_number = current_date.month
-    else:
-        month_number = month_map.get(
-            month.lower()
-        )  # Verifica equivalencia en int del mes en la consulta
-        if month_number is None:
-            error = f"Mes no soportado: {month}"
-            print(error)
-            return {"status": "error", "message": error}
-
-    payload = {  # Construye estructura del JSON para enviar a n8n
-        "tool": "get_order",
-        "resource": resource,
-        "options": {"fields": []},
-        "filters": [],
-    }
-
-    start_date = datetime(
-        year, month_number, 1
-    )  # Define el primer día del mes a partir del año y mes de la fecha actual
-
-    if month_number == 12:  # Verifica si el mes actual es diciembre
-        end_date = datetime(year + 1, 1, 1) - timedelta(
-            seconds=1
-        )  # Define el último día como el primero de enero del año siguiente
-    else:
-        end_date = datetime(year, month_number + 1, 1) - timedelta(
-            seconds=1
-        )  # # Define el último día como el primero del siguiente mes
+    if not start_date or not end_date:  # Verifica si la respuesta contiene los valores
+        return {"status": "error", "message": "No se pudo obtener el rango de fechas"}
 
     date_filer = ""  # Variable de tipo de modelo para los filtros de fechas
 
@@ -90,6 +65,13 @@ def get_order(order_type: str, month: str = "", year: Optional[int] = None):
         resource == "mrp.production"
     ):  # Verifica si el modelo de filtro a usar es para órdenes de fabricación
         date_filer = "create_date"
+
+    payload = {  # Construye estructura del JSON para enviar a n8n
+        "tool": "get_order",
+        "resource": resource,
+        "options": {"fields": []},
+        "filters": [],
+    }
 
     payload["filters"].extend(
         [
